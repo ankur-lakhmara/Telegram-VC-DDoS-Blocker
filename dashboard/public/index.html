@@ -1,0 +1,846 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VC Shield — Live Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg:      #080d18;
+    --surface: #0d1526;
+    --card:    #111c2f;
+    --border:  #1a2a42;
+    --text:    #cdd9f0;
+    --muted:   #4a6080;
+    --green:   #00e676;
+    --red:     #ff3d5a;
+    --yellow:  #ffca28;
+    --blue:    #29b6f6;
+    --cyan:    #00e5ff;
+    --orange:  #ff7043;
+    --purple:  #b39ddb;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', 'SF Pro Display', system-ui, sans-serif;
+    font-size: 14px;
+    min-height: 100vh;
+  }
+
+  /* ── HEADER ─────────────────────────────────────────────────── */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 24px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; z-index: 100;
+  }
+
+  .logo {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 18px; font-weight: 700; letter-spacing: .5px;
+    color: var(--cyan);
+  }
+  .logo span { font-size: 22px; }
+
+  .header-meta {
+    display: flex; align-items: center; gap: 20px;
+    font-size: 13px; color: var(--muted);
+  }
+
+  .status-badge {
+    display: flex; align-items: center; gap: 6px;
+    padding: 4px 12px; border-radius: 20px;
+    font-size: 12px; font-weight: 600; letter-spacing: .8px;
+    background: rgba(0,230,118,.1); color: var(--green);
+    border: 1px solid rgba(0,230,118,.3);
+  }
+  .status-badge.offline { background: rgba(255,61,90,.1); color: var(--red); border-color: rgba(255,61,90,.3); }
+
+  .pulse {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--green);
+    animation: pulse 1.5s infinite;
+  }
+  .offline .pulse { background: var(--red); animation: none; }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50%       { opacity: .4; transform: scale(.8); }
+  }
+
+  #ws-status { font-size: 12px; }
+  #uptime-display { color: var(--cyan); font-family: monospace; }
+
+  /* ── LAYOUT ─────────────────────────────────────────────────── */
+  main { padding: 20px 24px; max-width: 1600px; margin: 0 auto; }
+
+  /* ── VC PARTICIPANTS BIG BANNER ─────────────────────────────── */
+  .vc-banner {
+    background: linear-gradient(135deg, #0a1428 0%, #0d2040 50%, #0a1428 100%);
+    border: 1px solid var(--border);
+    border-top: 2px solid var(--cyan);
+    border-radius: 12px;
+    padding: 20px 28px;
+    margin-bottom: 20px;
+    display: flex; align-items: center; justify-content: space-between;
+    overflow: hidden; position: relative;
+  }
+  .vc-banner::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse at 30% 50%, rgba(0,229,255,.04) 0%, transparent 60%);
+    pointer-events: none;
+  }
+  .vc-banner-left { display: flex; align-items: center; gap: 16px; }
+  .vc-icon { font-size: 36px; }
+  .vc-label { font-size: 13px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); }
+  .vc-count {
+    font-size: 56px; font-weight: 800; color: var(--cyan);
+    font-family: 'Courier New', monospace;
+    text-shadow: 0 0 30px rgba(0,229,255,.5);
+    transition: all .3s;
+  }
+  .vc-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .vc-right { display: flex; gap: 30px; }
+  .vc-mini-stat { text-align: center; }
+  .vc-mini-stat .val { font-size: 22px; font-weight: 700; font-family: monospace; }
+  .vc-mini-stat .lbl { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+  /* ── STAT CARDS ─────────────────────────────────────────────── */
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 14px;
+    margin-bottom: 20px;
+  }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    position: relative; overflow: hidden;
+    transition: border-color .3s;
+  }
+  .card:hover { border-color: var(--blue); }
+  .card-label {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 1.2px;
+    color: var(--muted); margin-bottom: 8px;
+  }
+  .card-value {
+    font-size: 32px; font-weight: 800;
+    font-family: 'Courier New', monospace;
+    transition: color .3s;
+  }
+  .card-unit { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .card-accent {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    height: 2px;
+  }
+
+  .card-packets .card-value { color: var(--blue); }
+  .card-packets .card-accent { background: var(--blue); }
+  .card-cpu .card-value { color: var(--orange); }
+  .card-cpu .card-accent { background: var(--orange); }
+  .card-conns .card-value { color: var(--purple); }
+  .card-conns .card-accent { background: var(--purple); }
+  .card-blocked .card-value { color: var(--red); }
+  .card-blocked .card-accent { background: var(--red); }
+
+  /* ── CHART + TOP IPS ROW ────────────────────────────────────── */
+  .row2 {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 14px;
+    margin-bottom: 20px;
+  }
+
+  .panel {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .panel-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px; font-weight: 600; color: var(--text);
+  }
+  .panel-body { padding: 14px; }
+
+  .chart-wrap { position: relative; height: 180px; }
+
+  /* ── TOP IPS TABLE ──────────────────────────────────────────── */
+  .top-ips-table { width: 100%; border-collapse: collapse; }
+  .top-ips-table th {
+    font-size: 11px; text-transform: uppercase; letter-spacing: .8px;
+    color: var(--muted); text-align: left; padding: 4px 8px 8px;
+  }
+  .top-ips-table td { padding: 5px 8px; font-family: monospace; font-size: 13px; }
+  .top-ips-table tr:not(:last-child) td { border-bottom: 1px solid rgba(255,255,255,.04); }
+  .ip-bar-wrap { display: flex; align-items: center; gap: 8px; }
+  .ip-bar {
+    height: 4px; border-radius: 2px;
+    background: var(--blue); opacity: .6;
+    min-width: 4px; transition: width .5s;
+  }
+  .conn-count { color: var(--blue); font-weight: 600; }
+
+  /* ── BLOCKED IPS TABLE ──────────────────────────────────────── */
+  .blocked-table-wrap {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    margin-bottom: 20px;
+    overflow: hidden;
+  }
+  .blocked-table { width: 100%; border-collapse: collapse; }
+  .blocked-table th {
+    font-size: 11px; text-transform: uppercase; letter-spacing: .8px;
+    color: var(--muted); text-align: left;
+    padding: 8px 14px; background: var(--surface);
+    border-bottom: 1px solid var(--border);
+  }
+  .blocked-table td { padding: 10px 14px; font-family: monospace; font-size: 13px; vertical-align: middle; }
+  .blocked-table tr:not(:last-child) td { border-bottom: 1px solid rgba(255,255,255,.04); }
+  .blocked-table tr:hover td { background: rgba(255,255,255,.02); }
+
+  .empty-row td { text-align: center; color: var(--muted); font-family: sans-serif; padding: 24px; }
+
+  .badge {
+    display: inline-block; padding: 2px 8px; border-radius: 4px;
+    font-size: 11px; font-weight: 600; font-family: sans-serif;
+    letter-spacing: .5px;
+  }
+  .badge-red    { background: rgba(255,61,90,.15);  color: var(--red);    border: 1px solid rgba(255,61,90,.3);  }
+  .badge-yellow { background: rgba(255,202,40,.12); color: var(--yellow); border: 1px solid rgba(255,202,40,.3); }
+  .badge-blue   { background: rgba(41,182,246,.12); color: var(--blue);   border: 1px solid rgba(41,182,246,.3); }
+  .badge-green  { background: rgba(0,230,118,.1);   color: var(--green);  border: 1px solid rgba(0,230,118,.3);  }
+  .badge-muted  { background: rgba(100,116,128,.1); color: var(--muted);  border: 1px solid rgba(100,116,128,.3);}
+
+  .vc-live-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 5px 14px; border-radius: 20px;
+    font-size: 13px; font-weight: 700; letter-spacing: .5px;
+    margin-top: 10px;
+    transition: all .4s;
+  }
+  .vc-live-badge.live {
+    background: rgba(0,230,118,.12); color: var(--green);
+    border: 1px solid rgba(0,230,118,.4);
+    box-shadow: 0 0 16px rgba(0,230,118,.15);
+  }
+  .vc-live-badge.offline {
+    background: rgba(100,116,128,.08); color: var(--muted);
+    border: 1px solid rgba(100,116,128,.25);
+  }
+  .vc-live-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: currentColor;
+  }
+  .vc-live-badge.live .vc-live-dot { animation: pulse 1.4s infinite; }
+
+  .unblock-btn {
+    background: rgba(255,61,90,.1); color: var(--red);
+    border: 1px solid rgba(255,61,90,.4);
+    padding: 4px 10px; border-radius: 6px;
+    cursor: pointer; font-size: 12px; font-family: sans-serif;
+    transition: all .2s;
+  }
+  .unblock-btn:hover { background: var(--red); color: #fff; }
+
+  .countdown { color: var(--yellow); font-size: 12px; }
+
+  /* ── LOG ────────────────────────────────────────────────────── */
+  .log-wrap {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .log-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px; font-weight: 600;
+  }
+  .log-controls { display: flex; gap: 8px; align-items: center; }
+  .log-filter {
+    background: var(--surface); border: 1px solid var(--border);
+    color: var(--text); padding: 4px 10px; border-radius: 6px;
+    font-size: 12px; cursor: pointer; outline: none;
+  }
+  .log-filter:hover { border-color: var(--blue); }
+  .clear-log-btn {
+    background: transparent; color: var(--muted); border: 1px solid var(--border);
+    padding: 4px 10px; border-radius: 6px; cursor: pointer; font-size: 12px;
+    font-family: sans-serif; transition: all .2s;
+  }
+  .clear-log-btn:hover { border-color: var(--red); color: var(--red); }
+
+  #log-container {
+    height: 280px; overflow-y: auto;
+    padding: 10px 14px;
+    font-family: 'Courier New', monospace; font-size: 12px; line-height: 1.6;
+    background: #060a12;
+  }
+  #log-container::-webkit-scrollbar { width: 6px; }
+  #log-container::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  .log-line { padding: 2px 0; border-bottom: 1px solid rgba(255,255,255,.02); }
+  .log-line.BLOCKED { color: var(--red); }
+  .log-line.ALERT   { color: var(--yellow); }
+  .log-line.INFO    { color: #5a9e6f; }
+  .log-line.ERROR   { color: var(--orange); }
+
+  .log-level {
+    display: inline-block; width: 58px; font-weight: 700;
+  }
+  .log-ts { color: var(--muted); margin-right: 6px; font-size: 11px; }
+
+  /* ── TOAST ──────────────────────────────────────────────────── */
+  #toast {
+    position: fixed; bottom: 24px; right: 24px; z-index: 999;
+    padding: 12px 20px; border-radius: 8px;
+    font-size: 13px; font-weight: 500;
+    opacity: 0; transform: translateY(8px);
+    transition: all .3s;
+    pointer-events: none;
+  }
+  #toast.show { opacity: 1; transform: translateY(0); }
+  #toast.success { background: rgba(0,230,118,.15); color: var(--green); border: 1px solid rgba(0,230,118,.4); }
+  #toast.error   { background: rgba(255,61,90,.15);  color: var(--red);   border: 1px solid rgba(255,61,90,.4);  }
+
+  /* ── RESPONSIVE ─────────────────────────────────────────────── */
+  @media (max-width: 900px) {
+    .row2 { grid-template-columns: 1fr; }
+    .vc-right { display: none; }
+  }
+  @media (max-width: 600px) {
+    main { padding: 12px; }
+    header { padding: 10px 14px; }
+    .vc-count { font-size: 42px; }
+    .header-meta .uptime-wrap { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header>
+  <div class="logo">
+    <span>🛡</span> VC Shield
+  </div>
+  <div class="header-meta">
+    <div id="ws-status" class="status-badge">
+      <div class="pulse"></div> CONNECTING
+    </div>
+    <div class="uptime-wrap">
+      Uptime: <span id="uptime-display">--</span>
+    </div>
+  </div>
+</header>
+
+<main>
+
+  <!-- VC PARTICIPANTS BANNER -->
+  <div class="vc-banner">
+    <div class="vc-banner-left">
+      <div class="vc-icon">👥</div>
+      <div>
+        <div class="vc-label">Telegram Group Members</div>
+        <div class="vc-count" id="vc-count">—</div>
+        <div class="vc-sub">Total members in your Telegram group (via Bot API)</div>
+        <div style="display:flex;align-items:center;gap:10px;margin-top:10px;flex-wrap:wrap">
+          <div class="vc-live-badge offline" id="vc-live-badge">
+            <div class="vc-live-dot"></div>
+            <span id="vc-live-text">🔇 No Voice Chat Active</span>
+          </div>
+          <button id="vc-toggle-btn" onclick="toggleVC()"
+            style="background:rgba(41,182,246,.1);color:var(--blue);border:1px solid rgba(41,182,246,.35);
+                   padding:5px 14px;border-radius:20px;cursor:pointer;font-size:12px;font-weight:600;
+                   font-family:sans-serif;transition:all .2s;letter-spacing:.4px">
+            Mark as Active
+          </button>
+        </div>
+      </div>
+    </div>
+    <div class="vc-right">
+      <div class="vc-mini-stat">
+        <div class="val" id="banner-conns" style="color:var(--purple)">0</div>
+        <div class="lbl">Total Conns</div>
+      </div>
+      <div class="vc-mini-stat">
+        <div class="val" id="banner-blocked" style="color:var(--red)">0</div>
+        <div class="lbl">Blocked IPs</div>
+      </div>
+      <div class="vc-mini-stat">
+        <div class="val" id="banner-packets" style="color:var(--blue)">0</div>
+        <div class="lbl">Pkts/s</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STAT CARDS -->
+  <div class="cards">
+    <div class="card card-packets">
+      <div class="card-label">📦 Network Pkts / sec</div>
+      <div class="card-value" id="stat-pps">0</div>
+      <div class="card-unit">all server traffic</div>
+      <div class="card-accent"></div>
+    </div>
+    <div class="card card-cpu">
+      <div class="card-label">💻 CPU Usage</div>
+      <div class="card-value" id="stat-cpu">0</div>
+      <div class="card-unit">percent</div>
+      <div class="card-accent"></div>
+    </div>
+    <div class="card card-conns">
+      <div class="card-label">🔗 Active Connections</div>
+      <div class="card-value" id="stat-conns">0</div>
+      <div class="card-unit">total</div>
+      <div class="card-accent"></div>
+    </div>
+    <div class="card card-blocked">
+      <div class="card-label">🚫 Blocked IPs</div>
+      <div class="card-value" id="stat-blocked">0</div>
+      <div class="card-unit">right now</div>
+      <div class="card-accent"></div>
+    </div>
+  </div>
+
+  <!-- CHART + TOP IPS -->
+  <div class="row2">
+    <div class="panel">
+      <div class="panel-header">
+        <span>📈 Packet Rate — last 60 s</span>
+        <span id="pps-peak" style="color:var(--muted);font-size:12px">Peak: 0</span>
+      </div>
+      <div class="panel-body">
+        <div class="chart-wrap">
+          <canvas id="chart-pps"></canvas>
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-header">
+        <span>🔝 Top Connections</span>
+        <span style="color:var(--muted);font-size:12px">by IP</span>
+      </div>
+      <div class="panel-body" style="padding:8px 14px">
+        <table class="top-ips-table">
+          <thead>
+            <tr><th>IP Address</th><th>Conns</th><th>Bar</th></tr>
+          </thead>
+          <tbody id="top-ips-body">
+            <tr><td colspan="3" style="color:var(--muted);text-align:center;padding:20px">No data yet</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- BLOCKED IPS TABLE -->
+  <div class="blocked-table-wrap" style="margin-bottom:20px">
+    <div class="panel-header">
+      <span>🚫 Blocked IPs (<span id="blocked-count">0</span>)</span>
+      <span style="color:var(--muted);font-size:12px">Auto-unblock after 10 min</span>
+    </div>
+    <table class="blocked-table">
+      <thead>
+        <tr>
+          <th>IP Address</th>
+          <th>Reason</th>
+          <th>Blocked At</th>
+          <th>Auto-Unblock</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody id="blocked-body">
+        <tr class="empty-row"><td colspan="5">✅ No IPs currently blocked</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- LIVE LOG -->
+  <div class="log-wrap">
+    <div class="log-header">
+      <span>📋 Live Event Log</span>
+      <div class="log-controls">
+        <select class="log-filter" id="log-filter">
+          <option value="ALL">All levels</option>
+          <option value="BLOCKED">BLOCKED</option>
+          <option value="ALERT">ALERT</option>
+          <option value="INFO">INFO</option>
+          <option value="ERROR">ERROR</option>
+        </select>
+        <button class="clear-log-btn" onclick="clearLog()">Clear</button>
+      </div>
+    </div>
+    <div id="log-container"></div>
+  </div>
+
+</main>
+
+<div id="toast"></div>
+
+<script>
+// ── STATE ───────────────────────────────────────────────────────────────────
+const state = {
+  uptime:         0,
+  metrics:        {},
+  packetsHistory: [],
+  blockedIPs:     [],
+  blockedDetails: {},
+  recentLogs:     [],
+  logFilter:      'ALL',
+};
+
+// Block times for countdown
+const blockTimestamps = {}; // ip -> Date
+
+// ── CHART SETUP ─────────────────────────────────────────────────────────────
+const chartLabels = Array(60).fill('');
+const chartData   = Array(60).fill(0);
+
+const ppsChart = new Chart(document.getElementById('chart-pps').getContext('2d'), {
+  type: 'line',
+  data: {
+    labels:   chartLabels,
+    datasets: [{
+      data:            chartData,
+      borderColor:     '#29b6f6',
+      backgroundColor: 'rgba(41,182,246,0.08)',
+      fill:            true,
+      tension:         0.4,
+      pointRadius:     0,
+      borderWidth:     2,
+    }],
+  },
+  options: {
+    animation:   false,
+    responsive:  true,
+    maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { display: false },
+      y: {
+        beginAtZero: true,
+        grid:  { color: 'rgba(255,255,255,.05)' },
+        ticks: { color: '#4a6080', font: { size: 11 } },
+      },
+    },
+  },
+});
+
+let peakPps = 0;
+
+function pushPPS(val) {
+  chartData.push(val);
+  chartData.shift();
+  if (val > peakPps) { peakPps = val; document.getElementById('pps-peak').textContent = `Peak: ${peakPps}`; }
+  ppsChart.update('none');
+}
+
+// ── WEBSOCKET ────────────────────────────────────────────────────────────────
+let ws = null;
+let wsReconnectTimer = null;
+let uptimeTimer = null;
+
+function wsConnect() {
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  ws = new WebSocket(`${proto}//${location.host}`);
+
+  ws.onopen = () => {
+    setStatus(true);
+    if (wsReconnectTimer) { clearTimeout(wsReconnectTimer); wsReconnectTimer = null; }
+  };
+
+  ws.onclose = ws.onerror = () => {
+    setStatus(false);
+    if (!wsReconnectTimer) wsReconnectTimer = setTimeout(wsConnect, 3000);
+  };
+
+  ws.onmessage = (ev) => {
+    try {
+      const { type, data } = JSON.parse(ev.data);
+      switch (type) {
+        case 'init':       handleInit(data);       break;
+        case 'metrics':    handleMetrics(data);    break;
+        case 'block':      handleBlock(data);      break;
+        case 'unblock':    handleUnblock(data);    break;
+        case 'log':        handleLogEntry(data);   break;
+        case 'vc_override': handleVCOverride(data); break;
+      }
+    } catch {}
+  };
+}
+
+function setStatus(online) {
+  const el = document.getElementById('ws-status');
+  if (online) {
+    el.className = 'status-badge';
+    el.innerHTML = '<div class="pulse"></div> ACTIVE';
+  } else {
+    el.className = 'status-badge offline';
+    el.innerHTML = '<div class="pulse"></div> RECONNECTING…';
+  }
+}
+
+// ── HANDLERS ─────────────────────────────────────────────────────────────────
+function handleInit(data) {
+  state.uptime         = data.uptime || 0;
+  state.blockedIPs     = data.blockedIPs || [];
+  state.blockedDetails = data.blockedDetails || {};
+  state.recentLogs     = data.recentLogs || [];
+
+  if (data.packetsHistory) {
+    data.packetsHistory.forEach(p => {
+      chartData.push(p.v); chartData.shift();
+    });
+    ppsChart.update('none');
+  }
+
+  if (data.metrics && Object.keys(data.metrics).length) handleMetrics(data.metrics);
+
+  // Restore block timestamps
+  for (const [ip, det] of Object.entries(state.blockedDetails)) {
+    if (det.blockedAt) blockTimestamps[ip] = new Date(det.blockedAt);
+  }
+
+  renderBlockedTable();
+  renderLogs();
+  startUptimeTick();
+}
+
+function handleMetrics(m) {
+  state.metrics = m;
+
+  // Group member count (from Telegram Bot API — real data)
+  const memberCount = m.memberCount ?? 0;
+  document.getElementById('vc-count').textContent = memberCount > 0 ? memberCount : '—';
+
+  // Voice Chat live indicator (auto-detected from Telegram)
+  if (m.vcActive !== currentVCActive) {
+    handleVCOverride({ active: m.vcActive });
+  }
+
+  document.getElementById('banner-conns').textContent   = m.totalConnections ?? 0;
+  document.getElementById('banner-blocked').textContent = m.blockedCount     ?? 0;
+  document.getElementById('banner-packets').textContent = m.packetsPerSec    ?? 0;
+  document.getElementById('stat-pps').textContent       = m.packetsPerSec    ?? 0;
+  document.getElementById('stat-cpu').textContent       = m.cpuPercent != null ? m.cpuPercent.toFixed(1) : '0';
+  document.getElementById('stat-conns').textContent     = m.totalConnections ?? 0;
+  document.getElementById('stat-blocked').textContent   = m.blockedCount     ?? 0;
+  document.getElementById('blocked-count').textContent  = m.blockedCount     ?? 0;
+
+  pushPPS(m.packetsPerSec || 0);
+  renderTopIPs(m.topIPs || []);
+
+  // Colour CPU card based on load
+  const cpuEl = document.getElementById('stat-cpu');
+  const cpu = m.cpuPercent || 0;
+  cpuEl.style.color = cpu > 85 ? 'var(--red)' : cpu > 60 ? 'var(--yellow)' : 'var(--orange)';
+}
+
+function handleBlock(data) {
+  if (!state.blockedIPs.includes(data.ip)) state.blockedIPs.push(data.ip);
+  if (data.blockedDetails) state.blockedDetails = data.blockedDetails;
+  blockTimestamps[data.ip] = new Date(data.blockedAt || Date.now());
+  renderBlockedTable();
+  showToast(`🚨 Blocked: ${data.ip} — ${data.reason || 'attack detected'}`, 'error');
+}
+
+function handleUnblock(data) {
+  state.blockedIPs = state.blockedIPs.filter(ip => ip !== data.ip);
+  if (data.blockedDetails) state.blockedDetails = data.blockedDetails;
+  delete blockTimestamps[data.ip];
+  renderBlockedTable();
+  showToast(`✅ Unblocked: ${data.ip}`, 'success');
+}
+
+function handleLogEntry(entry) {
+  state.recentLogs.unshift(entry);
+  if (state.recentLogs.length > 300) state.recentLogs.pop();
+  prependLogLine(entry);
+}
+
+// ── RENDER HELPERS ───────────────────────────────────────────────────────────
+function renderTopIPs(ips) {
+  const tbody = document.getElementById('top-ips-body');
+  if (!ips.length) {
+    tbody.innerHTML = '<tr><td colspan="3" style="color:var(--muted);text-align:center;padding:16px">No active connections</td></tr>';
+    return;
+  }
+  const max = ips[0]?.count || 1;
+  tbody.innerHTML = ips.map(({ ip, count }) => {
+    const pct = Math.max(6, Math.round((count / max) * 100));
+    return `<tr>
+      <td style="color:var(--text)">${ip}</td>
+      <td class="conn-count">${count}</td>
+      <td><div class="ip-bar-wrap"><div class="ip-bar" style="width:${pct}px"></div></div></td>
+    </tr>`;
+  }).join('');
+}
+
+function renderBlockedTable() {
+  const tbody = document.getElementById('blocked-body');
+  document.getElementById('blocked-count').textContent = state.blockedIPs.length;
+
+  if (!state.blockedIPs.length) {
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="5">✅ No IPs currently blocked</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = state.blockedIPs.map(ip => {
+    const det       = state.blockedDetails[ip] || {};
+    const blockedAt = det.blockedAt ? new Date(det.blockedAt).toLocaleTimeString() : '—';
+    const reason    = det.reason || 'unknown';
+    const badgeCls  = reason.includes('conn') ? 'badge-red' : reason.includes('packet') ? 'badge-blue' : 'badge-yellow';
+
+    const unblockAt = blockTimestamps[ip]
+      ? new Date(blockTimestamps[ip].getTime() + 10 * 60_000).toLocaleTimeString()
+      : '—';
+
+    return `<tr>
+      <td style="color:var(--red)">${ip}</td>
+      <td><span class="badge ${badgeCls}">${reason}</span></td>
+      <td>${blockedAt}</td>
+      <td class="countdown">⏱ ${unblockAt}</td>
+      <td><button class="unblock-btn" onclick="doUnblock('${ip}')">Unblock</button></td>
+    </tr>`;
+  }).join('');
+}
+
+function renderLogs() {
+  const container = document.getElementById('log-container');
+  container.innerHTML = '';
+  const filtered = filterLogs(state.recentLogs);
+  filtered.forEach(e => container.appendChild(buildLogLine(e)));
+}
+
+function filterLogs(logs) {
+  const f = state.logFilter;
+  return f === 'ALL' ? logs : logs.filter(e => e.level === f);
+}
+
+function buildLogLine(entry) {
+  const div = document.createElement('div');
+  div.className = `log-line ${entry.level || 'INFO'}`;
+  const ts  = entry.timestamp ? new Date(entry.timestamp).toLocaleTimeString() : '';
+  div.innerHTML =
+    `<span class="log-ts">${ts}</span>` +
+    `<span class="log-level">[${entry.level || 'INFO'}]</span> ` +
+    escHtml(entry.message || '');
+  return div;
+}
+
+function prependLogLine(entry) {
+  if (state.logFilter !== 'ALL' && entry.level !== state.logFilter) return;
+  const container = document.getElementById('log-container');
+  const el = buildLogLine(entry);
+  container.insertBefore(el, container.firstChild);
+  // Keep max 200 DOM nodes
+  while (container.children.length > 200) container.removeChild(container.lastChild);
+}
+
+function escHtml(str) {
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function clearLog() {
+  document.getElementById('log-container').innerHTML = '';
+}
+
+// ── UPTIME TICKER ────────────────────────────────────────────────────────────
+function startUptimeTick() {
+  if (uptimeTimer) clearInterval(uptimeTimer);
+  uptimeTimer = setInterval(() => {
+    state.uptime++;
+    const h = Math.floor(state.uptime / 3600);
+    const m = Math.floor((state.uptime % 3600) / 60);
+    const s = state.uptime % 60;
+    document.getElementById('uptime-display').textContent =
+      `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  }, 1000);
+}
+
+// ── VC MANUAL TOGGLE ─────────────────────────────────────────────────────────
+let currentVCActive = false;
+
+function toggleVC() {
+  const newState = !currentVCActive;
+  if (ws && ws.readyState === 1) {
+    ws.send(JSON.stringify({ type: 'set_vc', data: { active: newState } }));
+  }
+}
+
+// Listen for vc_override confirmation from server
+function handleVCOverride(data) {
+  currentVCActive = data.active;
+  const badge    = document.getElementById('vc-live-badge');
+  const badgeTxt = document.getElementById('vc-live-text');
+  const btn      = document.getElementById('vc-toggle-btn');
+  if (data.active) {
+    badge.className      = 'vc-live-badge live';
+    badgeTxt.textContent = '🎙 Voice Chat LIVE';
+    btn.textContent      = 'Mark as Inactive';
+    btn.style.color      = 'var(--red)';
+    btn.style.borderColor = 'rgba(255,61,90,.4)';
+    btn.style.background  = 'rgba(255,61,90,.1)';
+  } else {
+    badge.className      = 'vc-live-badge offline';
+    badgeTxt.textContent = '🔇 No Voice Chat Active';
+    btn.textContent      = 'Mark as Active';
+    btn.style.color      = 'var(--blue)';
+    btn.style.borderColor = 'rgba(41,182,246,.35)';
+    btn.style.background  = 'rgba(41,182,246,.1)';
+  }
+}
+
+// ── UNBLOCK ACTION ───────────────────────────────────────────────────────────
+function doUnblock(ip) {
+  if (!confirm(`Unblock ${ip}?`)) return;
+  if (ws && ws.readyState === 1) {
+    ws.send(JSON.stringify({ type: 'unblock', data: { ip } }));
+  } else {
+    fetch('/api/unblock', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ ip }),
+    }).then(r => r.json()).then(r => {
+      showToast(r.success ? `✅ Unblocked ${ip}` : `❌ ${r.error}`, r.success ? 'success' : 'error');
+    });
+  }
+}
+
+// ── LOG FILTER ───────────────────────────────────────────────────────────────
+document.getElementById('log-filter').addEventListener('change', function () {
+  state.logFilter = this.value;
+  renderLogs();
+});
+
+// ── TOAST ─────────────────────────────────────────────────────────────────────
+let toastTimer = null;
+function showToast(msg, type = 'success') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = `show ${type}`;
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.classList.remove('show'); }, 3500);
+}
+
+// ── INIT ──────────────────────────────────────────────────────────────────────
+wsConnect();
+</script>
+</body>
+</html>

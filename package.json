@@ -1,0 +1,17 @@
+{
+  "name": "vc-shield-node",
+  "version": "1.0.0",
+  "description": "Real-time DDoS protection for WebRTC / Telegram VC servers",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js start",
+    "stop": "node index.js stop",
+    "status": "node index.js status",
+    "test:attack": "node index.js test"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "node-cron": "^3.0.3",
+    "ws": "^8.14.2"
+  }
+}

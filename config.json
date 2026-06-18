@@ -1,0 +1,27 @@
+{
+  "telegram": {
+    "bot_token": "REPLACE THIS TOKEN WITH YOUR BOT TOKEN",
+    "chat_id": "1002134518486",  //REPLACE THIS WITH YOUR GROUP CHAT ID
+    "group_id": "-1002134518486" // THIS WOULD BE THE SAME AS CHATID BUT WITH (-)
+  },
+  "network": {
+    "interface": "enp0s6",
+    "stun_port": 3478,
+    "signaling_port": 8080,
+    "turn_port_start": 49152,
+    "turn_port_end": 65535
+  },
+  "thresholds": {
+    "max_conn_per_ip": 50,
+    "max_packets_per_sec": 1000,
+    "max_new_conn_per_sec": 200,
+    "cpu_alert_percent": 85,
+    "auto_unblock_minutes": 10
+  },
+  "log_dir": "/var/log/vc-shield",
+  "dashboard": {
+    "enabled": true,
+    "port": 6398,
+    "password": "changeme123"
+  }
+}
