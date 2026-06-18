@@ -1,6 +1,7 @@
 # Telegram VC's DDoS protection tool
 
 ![External Diagram](https://i.postimg.cc/WzYqYrk8/Screenshot-2026-06-19-002554.png)
+![External Diagram](https://i.postimg.cc/pTZsT0wK/Screenshot-2026-06-19-005626.png)
 
 Real-time DDoS protection for WebRTC / Telegram VC servers.  
 Monitors traffic every second, auto-blocks attackers via `iptables`, sends Telegram alerts, and serves a live web dashboard.
