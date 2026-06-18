@@ -10,7 +10,7 @@ Monitors traffic every second, auto-blocks attackers via `iptables`, sends Teleg
 ### Step 1 — Clone / download to your VPS
 
 ```bash
-git clone <your-repo-url> /opt/vc-shield
+git clone https://github.com/ankur-lakhmara/Telegram-VC-DDoS-Blocker.git /opt/vc-shield
 cd /opt/vc-shield
 ```
 
