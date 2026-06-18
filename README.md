@@ -5,7 +5,11 @@
 Real-time DDoS protection for WebRTC / Telegram VC servers.  
 Monitors traffic every second, auto-blocks attackers via `iptables`, sends Telegram alerts, and serves a live web dashboard.
 
-[Click here to view deployed app](https://tg.helloevento.com)
+[Click here to view deployed app](https://tg.helloevento.com) 	
+| Username | Hint| 
+| --- | --- | 
+| Username | "The default administrator account name."|
+| Password | "A sequence of digits counting down from 6 to 1, then back up to 6 twice." |
 
 ---
 
